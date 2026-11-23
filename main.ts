@@ -19,8 +19,18 @@ const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)));
 /** Directories copied verbatim into the output directory. */
 const COPY_DIRS = ['game', 'screenshots'] as const;
 
-/** The dossier's text cap, as the bounty's gate.json asks for it. */
-const TEXT_MAX_BYTES = 65536;
+/**
+ * The gate's caps, from its gate.json, exactly as the kit's starter passes them: only
+ * text_max_bytes shapes the bytes, while the rest make this program refuse the same
+ * entries the scorer would (screenshots, game/ entry count, bytes and path length).
+ */
+const CAPS = {
+  text_max_bytes: 163840,
+  screenshots: { max: 4, max_bytes: 262144 },
+  game_max_files: 993,
+  game_max_bytes: 50331648,
+  game_path_max_bytes: 1000,
+} as const;
 
 /** True for a name whose extension is a JPEG one (`.jpg` or `.jpeg`, any case). */
 const JPEG_NAME = /\.jpe?g$/iu;
@@ -106,7 +116,7 @@ function main(): number {
   const shotFiles = copied.get('screenshots')?.length ?? 0;
   const screenshotCount = (copied.get('screenshots') ?? []).filter((path) => JPEG_NAME.test(path)).length;
 
-  const dossier = buildDossier(outDir, { text_max_bytes: TEXT_MAX_BYTES });
+  const dossier = buildDossier(outDir, CAPS);
   writeFileSync(join(outDir, 'dossier.json'), dossier);
 
   if (!quiet) {
