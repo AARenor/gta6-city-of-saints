@@ -3,21 +3,15 @@
  * Hand-in entrypoint for the GTA6 city entry.
  *
  * Assembles the directory a scorer reads: game/ and screenshots/ copied as regular
- * files, then dossier.json written by the vendored buildDossier. On top of the bytes
- * buildDossier returns, the dossier carries two fields of this entry's own:
- *
- *   tagline           one line saying what the game is
- *   screenshotCount   how many JPEG files were copied out of screenshots/
- *
- * Both are added to the parsed document and re-serialized with canonicalJson, so key
- * order stays sorted and the same directory still writes the same bytes. The
- * repository root comes from this module's own URL, so the script runs from any
- * working directory.
+ * files, then dossier.json written byte for byte as the vendored buildDossier returns
+ * it, because the gate's dossier_matches row compares the file against what
+ * buildDossier produces from game/ and screenshots/. The repository root comes from
+ * this module's own URL, so the script runs from any working directory.
  */
 import { copyFileSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildDossier, canonicalJson } from './vendor/makefun-game.ts';
+import { buildDossier } from './vendor/makefun-game.ts';
 
 /** The repository root: this file's directory, never process.cwd(). */
 const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)));
@@ -27,9 +21,6 @@ const COPY_DIRS = ['game', 'screenshots'] as const;
 
 /** The dossier's text cap, as the bounty's gate.json asks for it. */
 const TEXT_MAX_BYTES = 65536;
-
-/** What the game is, in one line, for the dossier's `tagline` field. */
-const TAGLINE = 'An original top-down open-world crime game, drawn with canvas paths.';
 
 /** True for a name whose extension is a JPEG one (`.jpg` or `.jpeg`, any case). */
 const JPEG_NAME = /\.jpe?g$/iu;
@@ -94,18 +85,6 @@ function copyTree(src: string, dest: string, prefix = ''): string[] {
   return copied;
 }
 
-/**
- * buildDossier's dossier with this entry's `tagline` and `screenshotCount` added.
- * The document is parsed, extended and re-serialized with canonicalJson, so the
- * result keeps buildDossier's sorted-key, no-space spelling.
- */
-function withEntryFields(dossier: Uint8Array, screenshotCount: number): Uint8Array {
-  const doc = JSON.parse(Buffer.from(dossier).toString('utf8')) as Record<string, unknown>;
-  doc['tagline'] = TAGLINE;
-  doc['screenshotCount'] = screenshotCount;
-  return Buffer.from(canonicalJson(doc), 'utf8');
-}
-
 function main(): number {
   const { output: outDir, quiet } = parseArgs(process.argv.slice(2));
 
@@ -127,7 +106,7 @@ function main(): number {
   const shotFiles = copied.get('screenshots')?.length ?? 0;
   const screenshotCount = (copied.get('screenshots') ?? []).filter((path) => JPEG_NAME.test(path)).length;
 
-  const dossier = withEntryFields(buildDossier(outDir, { text_max_bytes: TEXT_MAX_BYTES }), screenshotCount);
+  const dossier = buildDossier(outDir, { text_max_bytes: TEXT_MAX_BYTES });
   writeFileSync(join(outDir, 'dossier.json'), dossier);
 
   if (!quiet) {
